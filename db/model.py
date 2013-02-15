@@ -22,23 +22,29 @@ from uzu.db.errors import ModelError, ModelFieldError
 
 
 class MetaModel(type):
-	"""The metaclass for models"""
+	"""
+	The metaclass for models
+	"""
 
-	def __new__(mcls, name, bases, attrs):
+	@classmethod
+	def __prepare__(mcls, name, bases, driver=None):
+		return {"_driver": driver}
+
+	def __new__(cls, name, bases, attrs):
 		new_attrs = {}
 
-		fields = {}
+		fields = attrs.pop("_fields", {})
 
 		# Adds the base models' fields to the new model
 		if name != "Model":
 			for base in bases:
-				if (issubclass(base, Model)):
+				if issubclass(base, Model):
 					fields.update(base._fields)
 
 		# Populate the new_attr variable
 		for name, value in attrs.items():
 			# Populate the fields variable
-			if (isinstance(value, Field)):
+			if isinstance(value, Field):
 				fields[name] = attrs[name]
 
 				fields[name]._display.setdefault("name", name)
@@ -47,13 +53,19 @@ class MetaModel(type):
 			else:
 				new_attrs[name] = attrs[name]
 
+		# Adding driver specific fields
+		if "_driver" in new_attrs:
+			fields.extends(self._driver.special_fields)
+
 		new_attrs["_fields"] = fields
 
-		return type.__new__(mcls, name, bases, new_attrs)
+		return type.__new__(cls, name, bases, new_attrs)
 
 
 class Model(object, metaclass=MetaModel):
-	"""Base class for models"""
+	"""
+	Base class for models
+	"""
 
 	def __init__(self, **kwargs):
 		"""
@@ -65,12 +77,12 @@ class Model(object, metaclass=MetaModel):
 			u = User(name="Thomas", age=22)
 
 		Arguments:
-			kwargs: The keywords additionnal argument contains the values to
-			        fill the model's fields with.
+			**kwargs: The keywords additionnal argument contains the values to
+			          fill the model's fields with.
 
 		Raises:
-			ValueError: if a required field with no default value is not in the
-			            keywords additionnals arguments.
+			ModelFieldError: if a required field with no default value is not
+			                 in the keywords additionnals arguments.
 		"""
 
 		# Populate the instance with kwargs data
@@ -79,10 +91,7 @@ class Model(object, metaclass=MetaModel):
 					if name in kwargs:
 						setattr(self, name, kwargs[name])
 					else:
-						raise ModelFieldError(
-							name,
-							"A {name} field is required"
-						)
+						raise ModelFieldError(name, "'{name}' field required")
 			
 			else:
 				setattr(self, name, kwargs.get(name, field.default))
@@ -91,17 +100,21 @@ class Model(object, metaclass=MetaModel):
 	def __repr__(self):
 		model_name = self.__class__.__name__
 
-		fields = ("{}: {}".format(name, value) for name, value in self.items())
+		fields = (
+			"{} : {!r}".format(name, value)
+			for name, value in self.items()
+			if value is not None or self._fields[name].required
+		)
 
-		return "<{} ".format(model_name)  + ", ".join(fields) + ">"
+		return "<{} {}>".format(model_name, ", ".join(fields))
 
 	def __delattr__(self, name):
-		"""Forbid the deletion of fields values."""
+		"""
+		Forbid the deletion of fields values.
+		"""
+
 		if name in self._fields:
-			raise ModelFieldError(
-				name,
-				"'{name}' attribute is a field value and can not be deleted."
-			)
+			raise ModelFieldError(name, "'{name}' field can not be deleted.")
 		else:
 			super().__delattr__(name)
 
@@ -110,7 +123,10 @@ class Model(object, metaclass=MetaModel):
 	#=================#
 
 	def __len__(self):
-		"""Return the number of fields of this model."""
+		"""
+		Return the number of fields of this model.
+		"""
+
 		return len(self._fields)
 
 	#=====================#
@@ -118,7 +134,10 @@ class Model(object, metaclass=MetaModel):
 	#=====================#
 
 	def __contains__(self, name):
-		"""Verify if this model has a field named name."""
+		"""
+		Verify if this model has a field named name.
+		"""
+
 		return name in self._fields
 
 	#====================#
@@ -126,7 +145,10 @@ class Model(object, metaclass=MetaModel):
 	#====================#
 
 	def __iter__(self):
-		"""Return an iterator over the model fields' names."""
+		"""
+		Return an iterator over the model fields' names.
+		"""
+
 		return self.keys()
 
 	#===================#
@@ -135,51 +157,63 @@ class Model(object, metaclass=MetaModel):
 
 	def __getitem__(self, name):
 		"""
-		Allow to get fields values using the Mapping interface.
+		Allow to get fields values using the `Mapping` interface.
 
 		Raises:
-			KeyError: if there is no field named `name`.
+			KeyError: if there is no field named 'name'.
 		"""
+
 		if name in self._fields:
 			return getattr(self, name)
 		else:
-			raise ModelFieldError(name, "No '{name}' field")
+			raise KeyError("No '{}' field".format(name))
 
 	def __setitem__(self, name, value):
 		"""
-		Allow to set fields values using the Mapping interface.
+		Allow to set fields values using the `Mapping` interface.
 
 		Raises:
-			KeyError: if there is no field named `name`.
-			ValueError: if the field to fill is required an the value is None.
+			KeyError: if there is no field named 'name'.
+			ModelFieldError: if the field to fill is required an the value is
+			                 None.
 		"""
+
 		if name in self._fields:
 			if not (self._fields[name].required and value is None):
 				setattr(self, name, value)
 			else:
-				raise ValueError("A required field can not be filled with None")
+				raise ModelFieldError(name, "'{name}' can not be set to None")
 		else:
-			raise ModelFieldError(name, "No '{name}' field")
+			raise KeyError("No '{}' field".format(name))
 
 	def __delitem__(self, name):
-		"""Forbid the deletion of fields values using the Mapping interface."""
-		raise ModelFieldError(
-			name,
-			"'{name}' is a field value and can not be deleted."
-		)
+		"""
+		Forbid the deletion of fields values using the `Mapping` interface.
+		"""
+
+		raise ModelFieldError(name, "'{name}' field can not be deleted")
 
 	def items(self):
-		"""Returns an iterator on a fields name and value pair."""
+		"""
+		Returns an iterator on a fields name and value pair.
+		"""
+		
 		for name in self._fields.keys():
 			yield (name, getattr(self, name))
 
 	def keys(self):
-		"""Return an iterator on fields names."""
+		"""
+		Return an iterator on fields names.
+		"""
+		
 		for name in self._fields.keys():
 			yield name
 
 	def values(self):
-		"""Return an iterator on fields values."""
+		"""
+		Return an iterator on fields values.
+		"""
+		
 		for name in self._fields.keys():
 			yield getattr(self, name)
 
@@ -187,9 +221,57 @@ class Model(object, metaclass=MetaModel):
 	# Methods #
 	#=========#
 
+	@classmethod
+	def is_abstract(cls):
+		return cls._driver is None
+
+	@classmethod
+	def driver(cls):
+		"""
+		Access to the model's driver object.
+		"""
+
+		assert not cls.is_abstract()
+		return cls._driver
+
+	@classmethod
+	def field(cls, name):
+		return cls._fields[name]
+
+	def store(self):
+		"""
+		Store a model instance in database.
+		"""
+
+		self._driver.store(self)
+
 	def is_valid(self):
-		"""Validate a model if all its fields values are valid."""
+		"""
+		Validate a model if all its fields' values are valid.
+		"""
+		
 		return all(
 			field.is_valid(getattr(self, name))
 			for name, field in self._fields.items()
 		)
+
+
+class DBDriver(object):
+	"""
+	docstring for DBDriver
+	"""
+
+	special_fields = {}
+
+	def __init__(self, model):
+		self._model = model
+
+	def load(self, id):
+		raise NotImplementedError
+
+	def store(self, entry):
+		raise NotImplementedError
+
+
+
+		
