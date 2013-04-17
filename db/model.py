@@ -18,7 +18,7 @@ along with Uzu.  If not, see <http://www.gnu.org/licenses/>.
 		
 from uzu.db.fields import Field
 
-from uzu.db.errors import ModelError, ModelFieldError
+from uzu.db.errors import ModelError
 
 
 class MetaModel(type):
@@ -38,7 +38,7 @@ class MetaModel(type):
 		# Adds the base models' fields to the new model
 		if name != "Model":
 			for base in bases:
-				if issubclass(base, Model):
+				if issubclass(base, Model) and base.is_abstract():
 					fields.update(base._fields)
 
 		# Populate the new_attr variable
@@ -47,6 +47,7 @@ class MetaModel(type):
 			if isinstance(value, Field):
 				fields[name] = attrs[name]
 
+				# Adding display attributes
 				fields[name]._display.setdefault("name", name)
 				fields[name]._display.setdefault("name_plural", name + 's')
 
@@ -55,7 +56,7 @@ class MetaModel(type):
 
 		# Adding driver specific fields
 		if "_driver" in new_attrs:
-			fields.extends(self._driver.special_fields)
+			fields.extends(new_attrs['_driver'].special_fields)
 
 		new_attrs["_fields"] = fields
 
@@ -91,7 +92,7 @@ class Model(object, metaclass=MetaModel):
 					if name in kwargs:
 						setattr(self, name, kwargs[name])
 					else:
-						raise ModelFieldError(name, "'{name}' field required")
+						raise ModelError("'{}' field required".format(name))
 			
 			else:
 				setattr(self, name, kwargs.get(name, field.default))
@@ -114,7 +115,7 @@ class Model(object, metaclass=MetaModel):
 		"""
 
 		if name in self._fields:
-			raise ModelFieldError(name, "'{name}' field can not be deleted.")
+			raise ModelError("'{}' field can not be deleted.".format(name))
 		else:
 			super().__delattr__(name)
 
@@ -182,7 +183,7 @@ class Model(object, metaclass=MetaModel):
 			if not (self._fields[name].required and value is None):
 				setattr(self, name, value)
 			else:
-				raise ModelFieldError(name, "'{name}' can not be set to None")
+				raise ModelError("'{}' can not be set to None".format(name))
 		else:
 			raise KeyError("No '{}' field".format(name))
 
@@ -240,7 +241,7 @@ class Model(object, metaclass=MetaModel):
 
 	def store(self):
 		"""
-		Store a model instance in database.
+		Store an entry in database.
 		"""
 
 		self._driver.store(self)
@@ -254,24 +255,3 @@ class Model(object, metaclass=MetaModel):
 			field.is_valid(getattr(self, name))
 			for name, field in self._fields.items()
 		)
-
-
-class DBDriver(object):
-	"""
-	docstring for DBDriver
-	"""
-
-	special_fields = {}
-
-	def __init__(self, model):
-		self._model = model
-
-	def load(self, id):
-		raise NotImplementedError
-
-	def store(self, entry):
-		raise NotImplementedError
-
-
-
-		
