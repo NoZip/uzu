@@ -36,96 +36,96 @@ ISO_TIME = "%H:%M:%S.%f%z"
 ISO_DATETIME = ISO_DATE + 'T' + ISO_TIME
 
 def encode_field(value, field):
-	if isinstance(field, DateTimeField):
-		return value.strftime(ISO_DATETIME)
-	elif isinstance(field, ListField):
-		return [encode_field(item, field.field) for item in value]
-	# elif isinstance(field, ModelField):
-	# 	return value.key
-	else:
-		return value
+    if isinstance(field, DateTimeField):
+        return value.strftime(ISO_DATETIME)
+    elif isinstance(field, ListField):
+        return [encode_field(item, field.field) for item in value]
+    # elif isinstance(field, ModelField):
+    #   return value.key
+    else:
+        return value
 
 @coroutine
 def decode_field(value, field):
-	if isinstance(field, DateTimeField):
-		return datetime.strptime(value, ISO_DATETIME)
-	elif isinstance(field, ListField):
-		return [decode_field(item, field.field) for item in value]
-	# elif isinstance(field, ModelField):
-	# 	entry = yield field.model.load(value)
-	# 	return entry
-	else:
-		return value
+    if isinstance(field, DateTimeField):
+        return datetime.strptime(value, ISO_DATETIME)
+    elif isinstance(field, ListField):
+        return [decode_field(item, field.field) for item in value]
+    # elif isinstance(field, ModelField):
+    #   entry = yield field.model.load(value)
+    #   return entry
+    else:
+        return value
 
 
 class CouchbaseBucket(Driver):
 
-	def __init__(self, host, port):
-		self._client = Memcached(host, port)
-		self._cache = {}
+    def __init__(self, host, port):
+        self._client = Memcached(host, port)
+        self._cache = {}
 
-	@coroutine
-	def load(self, key, schema, refresh_cache=False):
-		if key not in self._cache:
-			response = yield self._client.get(key)
-			doc = json.loads(response.value.decode())
+    @coroutine
+    def load(self, key, schema, refresh_cache=False):
+        if key not in self._cache:
+            response = yield self._client.get(key)
+            doc = json.loads(response.value.decode())
 
-			data = {}
-			for name, value in doc.items():
-				data[name] = yield decode_field(value, schema.fields[name])
+            data = {}
+            for name, value in doc.items():
+                data[name] = yield decode_field(value, schema.fields[name])
 
-			entry = schema(data)
-			entry.meta = Meta(key, response.header.cas)
+            entry = schema(data)
+            entry.meta = Meta(key, response.header.cas)
 
-			self._cache[key] = entry
+            self._cache[key] = entry
 
-		elif refresh_cache:
-			yield self._cache[key].reload()
+        elif refresh_cache:
+            yield self._cache[key].reload()
 
-		return self._cache[key]
+        return self._cache[key]
 
-	@coroutine
-	def reload(self, entry):
-		response = yield self._client.get(entry.key)
+    @coroutine
+    def reload(self, entry):
+        response = yield self._client.get(entry.key)
 
-		data = {}
-		for name, value in entry.items():
-			data[name] = yield decode_field(value, entry.fields[name])
+        data = {}
+        for name, value in entry.items():
+            data[name] = yield decode_field(value, entry.fields[name])
 
-		entry.clear()
-		entry.update(data)
-		entry.meta.cas = response.header.cas
+        entry.clear()
+        entry.update(data)
+        entry.meta.cas = response.header.cas
 
-	@coroutine
-	def store(self, entry):
-		meta = getattr(entry, "meta", None)
-		doc = {
-			name: encode_field(value, entry.fields[name])
-			for name, value in entry.items()
-		}
+    @coroutine
+    def store(self, entry):
+        meta = getattr(entry, "meta", None)
+        doc = {
+            name: encode_field(value, entry.fields[name])
+            for name, value in entry.items()
+        }
 
-		doc = json.dumps(doc)
+        doc = json.dumps(doc)
 
-		if meta:
-			# Update the document in database
-			response = yield self._client.replace(meta.key, doc, entry.meta.cas)
-			entry.meta.cas = response.header.cas
-		else:
-			#create the document in database
-			key = uuid4().hex
-			response = yield self._client.add(key, doc)
-			entry.meta = Meta(key, response.header.cas)
-			self._cache[key] = entry
+        if meta:
+            # Update the document in database
+            response = yield self._client.replace(meta.key, doc, entry.meta.cas)
+            entry.meta.cas = response.header.cas
+        else:
+            #create the document in database
+            key = uuid4().hex
+            response = yield self._client.add(key, doc)
+            entry.meta = Meta(key, response.header.cas)
+            self._cache[key] = entry
 
-	@coroutine
-	def remove(self, entry):
-		response = yield self._client.delete(entry.key)
-		del self._cache[entry.key]
-		del entry.meta
+    @coroutine
+    def remove(self, entry):
+        response = yield self._client.delete(entry.key)
+        del self._cache[entry.key]
+        del entry.meta
 
 
 class CouchbaseSASLBucket(CouchbaseBucket):
 
-	def __init__(self, host, name, password):
-		self._client = Memcached(host, 11211)
-		self._client.sasl_plain_auth(name, password)
+    def __init__(self, host, name, password):
+        self._client = Memcached(host, 11211)
+        self._client.sasl_plain_auth(name, password)

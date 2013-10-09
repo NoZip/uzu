@@ -19,37 +19,37 @@ from abc import ABCMeta, abstractmethod
 
 
 class Driver(metaclass=ABCMeta):
-	"""
-	An Abstract class To rule all drivers.
-	"""
+    """
+    An Abstract class To rule all drivers.
+    """
 
-	@abstractmethod
-	def load(self, key, model):
-		"""
-		Fetch in database the entry referenced by "key" and return it.
-		"""
-		raise NotImplementedError
+    @abstractmethod
+    def load(self, key, model):
+        """
+        Fetch in database the entry referenced by "key" and return it.
+        """
+        raise NotImplementedError
 
-	@abstractmethod
-	def reload(self, entry):
-		"""
-		Updates entry data.
-		"""
-		raise NotImplementedError
+    @abstractmethod
+    def reload(self, entry):
+        """
+        Updates entry data.
+        """
+        raise NotImplementedError
 
-	@abstractmethod
-	def store(self, entry):
-		"""
-		Store the entry in the database.
-		"""
-		raise NotImplementedError
+    @abstractmethod
+    def store(self, entry):
+        """
+        Store the entry in the database.
+        """
+        raise NotImplementedError
 
-	@abstractmethod
-	def remove(self, entry):
-		"""
-		Remove the entry from database.
-		"""
-		raise NotImplementedError
+    @abstractmethod
+    def remove(self, entry):
+        """
+        Remove the entry from database.
+        """
+        raise NotImplementedError
 
 
 
