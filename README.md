@@ -3,19 +3,18 @@ Uzu
 
 Uzu is framework to make web developpement more comfortable.
 
-Uzu is made in Python 3k.
+Installation
+------------
 
-Models
-------
+python 3.3 is required.
+tornado is required.
 
-Models are templates of stored data. They are independant of the database you
-use to store them. The link is done by drivers that executes the database
-operations in background.
+    pip install tornado
 
-Define a Model made of different field types (Usual or Exotics), bind it to a
-driver corresponding to your storing engine, and you it is done!
+Schemas
+-------
 
-Driver Brainstorming in progress.
+Work in progress
 
 Templating
 ----------

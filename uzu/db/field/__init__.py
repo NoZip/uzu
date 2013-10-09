@@ -15,29 +15,4 @@ You should have received a copy of the GNU Lesser General Public License
 along with Uzu.  If not, see <http://www.gnu.org/licenses/>.
 """
 
-from abc import ABCMeta
-
-
-class DBDriver(metaclass=ABCMeta):
-    """
-    The base class for all drivers.
-    """
-
-    special_fields = {} # database build-in fields
-
-    def __init__(self, model):
-        self._model = model
-
-    @abstractmethod
-    def load(self, id):
-        """
-        Loads the entry in database identified with `id`.
-        """
-        raise NotImplementedError
-
-    @abstractmethod
-    def store(self, entry):
-        """
-        Store an entry in the database.
-        """
-        raise NotImplementedError
+from uzu.db.field.core import *

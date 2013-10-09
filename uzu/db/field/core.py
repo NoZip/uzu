@@ -15,13 +15,14 @@ You should have received a copy of the GNU Lesser General Public License
 along with Uzu.  If not, see <http://www.gnu.org/licenses/>.
 """
 
-
 import re
 
 from datetime import datetime, timezone
 from collections import Sequence, Mapping
 
-from uzu.db.errors import FieldError
+
+class FieldError(Exception):
+	pass
 
 
 class Field(object):
@@ -31,35 +32,24 @@ class Field(object):
 	Attributes:
 		required: A boolean that indicate if the field is required.
 		default: The default value of this field.
-		display: properties used to display the field.
 	"""
 
-	def __init__(self, required=False, default=None, display={}):
-		self._required = required
-		self._default = default
-		self._display = display
-
-	@property
-	def required(self):
-		return self._required
-
-	@property
-	def default(self):
-		return self._default
-
-	@property
-	def display(self):
-		return self._display
+	def __init__(self, required=False, default=None):
+		self.required = required
+		self.default = default
 
 	def _required_test(self, value):
-		return not self._required and value is None
+		return not (self.required and value is None)
+
+	def _type_test(self, value):
+		return isinstance(value, self._type)
 
 	def is_valid(self, value):
 		"""
 		Test if the field is required and filled.
 		Do not test anything if the field is not required
 		"""
-		return self._required_test(value)
+		return self._required_test(value) and self._type_test(value)
 
 
 #================#
@@ -69,8 +59,6 @@ class Field(object):
 class NumericField(Field):
 	"""
 	An abstract numeric field.
-	In the child classes a class argument `_type`, that indicate the field's
-	numeric type, must be present.
 
 	Attributes:
 		min: the minimum value of the field.
@@ -80,38 +68,24 @@ class NumericField(Field):
 	def __init__(self, min=None, max=None, **kwargs):
 		super().__init__(**kwargs)
 
-		self._min = min
-		self._max = max
-
-	@property
-	def min(self):
-		return self._min
-
-	@property
-	def max(self):
-		return self._max
+		self.min = min
+		self.max = max
 
 	def _range_test(self, value):
 		min_test = (
-			self._min is None
-			or (self._min is not None and (self._min < value))
+			self.min is None
+			or (self.min is not None and (self.min < value))
 		)
 
 		max_test = (
-			self._max is None
-			or (self._max is not None and (value < self._max))
+			self.max is None
+			or (self.max is not None and (value < self.max))
 		)
 
 		return min_test and max_test
 
 	def is_valid(self, value):
-		return (
-			self._required_test(value)
-			or (
-				isinstance(value, self._type)
-				and self._range_test(value)
-			)
-		)
+		return super().is_valid(value) and self._range_test(value)
 
 class IntegerField(NumericField):
 	"""An integer field."""
@@ -139,48 +113,48 @@ class StringField(Field):
 		pattern: a pattern used to check the field's value
 	"""
 
-	def __init__(self, min_length=None,
-		               max_length=None,
-		               pattern=None,
-		               **kwargs):
+	_type = str
+
+	def __init__(
+		self,
+		min_length=None,
+		max_length=None,
+		pattern=None,
+		multiline=False,
+		**kwargs
+	):
 		super().__init__(**kwargs)
 
-		self._min_length = min_length
-		self._max_length = max_length
+		self.min_length = min_length
+		self.max_length = max_length
 
 		if pattern:
 			if (isinstance(pattern, str)):
-				self._pattern = re.compile(pattern)
+				self.pattern = re.compile(pattern)
+			# TODO: regex pattern case.
 			# elif (isinstance(pattern, re.regex)):
-			# 	self._pattern = pattern
+			# 	self.pattern = pattern
 			else:
 				raise FieldError("Invalid type for the 'pattern' argument")
 		else:
-			self._pattern = None
+			self.pattern = None
 
-	def min_length(self):
-		return self._min_length
-
-	def max_length(self):
-		return self._max_length
-
-	def pattern(self):
-		return self._pattern
+		self.multiline = multiline
 
 	def _length_test(self, value):
 		min_length_test = (
-			self._min_length is None
+			self.min_length is None
 			or (
-				self._min_length is not None
-				and (self._min_length < len(value))
+				self.min_length is not None
+				and (self.min_length < len(value))
 			)
 		)
 
 		max_length_test = (
-			self._max_length is None
+			self.max_length is None
 			or (
-				self._max_length is not None
-				and (len(value) < self._max_length)
+				self.max_length is not None
+				and (len(value) < self.max_length)
 			)
 		)
 
@@ -188,7 +162,7 @@ class StringField(Field):
 
 	def _pattern_test(self, value):
 		return (
-			self._pattern is None
+			self.pattern is None
 			or (
 				self._pattern is not None
 				and bool(self._pattern.match(value))
@@ -197,12 +171,8 @@ class StringField(Field):
 
 	def is_valid(self, value):
 		return (
-			self._required_test(value)
-			or (
-				isinstance(value, str)
-				and self._length_test(value)
-				and self._pattern_test(value)
-			)
+			super().is_valid(value)
+			and (self._length_test(value) and self._pattern_test(value))
 		)
 
 
@@ -216,50 +186,25 @@ class DateTimeField(Field):
 
 	Attributes:
 		auto_now: fill the field with the current date by default.
-		utc: toggle the use of utc time instead of local time.
 	"""
 
-	def __init__(self, auto_now=False, utc=False, **kwargs):
+	_type = datetime
+
+	def __init__(self, auto_now=False, **kwargs):
 		super().__init__(**kwargs)
 
-		if auto_now:
-			del self._default
-
-		self._auto_now = auto_now
-		self._utc = utc
+		self.auto_now = auto_now
 
 	@property
 	def default(self):
-		"""
-		Overriding of the Field#default property in order to handle auto_now.
-		"""
-		if not self._auto_now:
-			return self._default
+		if self.auto_now:
+			return datetime.now(timezone.utc)
 		else:
-			if not self._utc:
-				return datetime.now()
-			else:
-				return datetime.now(timezone.utc)
+			return self._default
 
-	@property
-	def auto_now(self):
-		return self._auto_now
-
-	@property
-	def utc(self):
-		return self._utc
-
-	def _utc_test(self, value):
-		return (
-			not self._utc
-			or (self._utc and value.tzinfo == timezone.utc)
-		)
-
-	def is_valid(self, value):
-		return (
-			self._required_test(value)
-			or (isinstance(value, datetime) and self._utc_test(value))
-		)
+	@default.setter
+	def default(self, value):
+		self._default = value
 
 
 #==================#
@@ -273,23 +218,21 @@ class ListField(Field):
 	Attributes:
 		field: the type of the fields in this list field.
 	"""
+
+	_type = list
+
 	def __init__(self, field, **kwargs):
+		kwargs.setdefault("default", [])
+
 		super().__init__(**kwargs)
 
 		if not isinstance(field, Field):
 			raise FieldError("'field' argument must be a Field instance")
 
-		self._field = field
-
-	@property
-	def field(self):
-		return self._field
+		self.field = field
 
 	def is_valid(self, value):
 		return (
-			self._required_test(value)
-			or (
-				isinstance(value, Sequence)
-				and all(self.field.is_valid(v) for v in value)
-			)
+			super().is_valid()
+			and all(self.field.is_valid(v) for v in value)
 		)
