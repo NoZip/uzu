@@ -1,0 +1,5 @@
+<ul>
+    {% for row in userList %}
+    <a href="/user/{{ row["id"] }}">{{ row["key"] }}</a>
+    {% end %}
+</ul>

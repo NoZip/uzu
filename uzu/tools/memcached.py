@@ -127,7 +127,7 @@ class Memcached:
         """
         Sends a package to the Memcached server.
 
-        Parameters:
+        parameters:
             opcode: the command code.
             extra: the extra data.
             key: TODO
@@ -137,8 +137,7 @@ class Memcached:
             opaque: a value that will be returned in the response.
             cas: data version check
 
-        Returns:
-            The request object that have been sent.
+        return: The request object that have been sent.
         """
 
         if isinstance(key, str):
@@ -209,18 +208,17 @@ class Memcached:
         """
         Get data from Memcached server.
 
-        Parameters:
+        parameters:
             key: the to get.
 
-        Returns:
-            The server response.
+        return: The server response.
         """
         assert key
 
         opcode = 0x00 #if not quiet else 0x09
         response =  yield self.query(opcode, key=key)
 
-        response.extra = GetExtra.unpack(response.extra)
+        # response.extra = GetExtra.unpack(response.extra)
 
         return response
 
@@ -242,15 +240,14 @@ class Memcached:
         If the key does not exist, key and data will be created.
         If the key exist, it's data will be modified.
 
-        Parameters:
+        parameters:
             key: TODO
             value: TODO
             cas: TODO
             flags: TODO
             expiration: TODO
 
-        Returns:
-            The server response.
+        return: The server response.
         """
         assert(key)
 
@@ -282,15 +279,14 @@ class Memcached:
         Attempting to use this command on a key already in database will raise
         an exception.
 
-        Parameters:
+        parameters:
             key: TODO
             value: TODO
             cas: TODO
             flags: TODO
             expiration: TODO
 
-        Returns:
-            The server response.
+        return: The server response.
         """
         assert(key)
 
@@ -322,15 +318,14 @@ class Memcached:
         Replace data associated to a key on Memcached server.
         If the key does not exist, an exception will be raised.
 
-        Parameters:
+        parameters:
             key: TODO
             value: TODO
             cas: TODO
             flags: TODO
             expiration: TODO
 
-        Returns:
-            The server response.
+        return: The server response.
         """
         assert(key)
 
