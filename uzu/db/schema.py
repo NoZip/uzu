@@ -41,6 +41,7 @@ class MetaSchema(ABCMeta):
 
         cls.fields = fields
 
+Proxy = structure("Proxy", ("key", "schema"))
 
 class Schema(MutableMapping, metaclass=MetaSchema):
     """
@@ -85,6 +86,11 @@ class Schema(MutableMapping, metaclass=MetaSchema):
 
     def __getitem__(self, name):
         if name in self._data:
+            if isinstance(self._data[name], Proxy):
+                # proxy loading
+                proxy = self._data[name]
+                self._data[name] = proxy.schema.load(proxy.key).result()
+
             return self._data[name]
         else:
             raise KeyError("No '{}' field".format(name))

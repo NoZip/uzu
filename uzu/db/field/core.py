@@ -65,8 +65,8 @@ class NumericField(Field):
         max: the maximum value of the field.
     """
 
-    def __init__(self, min=None, max=None, **kwargs):
-        super().__init__(**kwargs)
+    def __init__(self, min=None, max=None, required=False, default=None):
+        super().__init__(required=required, default=default)
 
         self.min = min
         self.max = max
@@ -120,10 +120,10 @@ class StringField(Field):
         min_length=None,
         max_length=None,
         pattern=None,
-        multiline=False,
-        **kwargs
+        required=False,
+        default=None
     ):
-        super().__init__(**kwargs)
+        super().__init__(required=required, default=default)
 
         self.min_length = min_length
         self.max_length = max_length
@@ -138,8 +138,6 @@ class StringField(Field):
                 raise FieldError("Invalid type for the 'pattern' argument")
         else:
             self.pattern = None
-
-        self.multiline = multiline
 
     def _length_test(self, value):
         min_length_test = (
@@ -190,8 +188,8 @@ class DateTimeField(Field):
 
     _type = datetime
 
-    def __init__(self, auto_now=False, **kwargs):
-        super().__init__(**kwargs)
+    def __init__(self, auto_now=False, required=False, default=None):
+        super().__init__(required=required, default=default)
 
         self.auto_now = auto_now
 
@@ -221,10 +219,8 @@ class ListField(Field):
 
     _type = list
 
-    def __init__(self, field, **kwargs):
-        kwargs.setdefault("default", [])
-
-        super().__init__(**kwargs)
+    def __init__(self, field, required=False, default=None):
+        super().__init__(required=required, default=default)
 
         if not isinstance(field, Field):
             raise FieldError("'field' argument must be a Field instance")

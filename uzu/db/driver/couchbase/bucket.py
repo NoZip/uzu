@@ -24,22 +24,25 @@ ISO_DATETIME = ISO_DATE + 'T' + ISO_TIME
 def encode_field(value, field):
     if isinstance(field, DateTimeField):
         return value.strftime(ISO_DATETIME)
+
     elif isinstance(field, ListField):
         return [encode_field(item, field.field) for item in value]
-    # elif isinstance(field, ModelField):
-    #   return value.key
+        
+    elif isinstance(field, ForeignKeyField):
+        return value.key
     else:
         return value
 
-@coroutine
 def decode_field(value, field):
     if isinstance(field, DateTimeField):
         return datetime.strptime(value, ISO_DATETIME)
+
     elif isinstance(field, ListField):
         return [decode_field(item, field.field) for item in value]
-    # elif isinstance(field, ModelField):
-    #   entry = yield field.model.load(value)
-    #   return entry
+
+    elif isinstance(field, ForeignKeyField):
+      return Proxy(key=value, schema=field.schema)
+
     else:
         return value
 
@@ -66,7 +69,7 @@ class Bucket(Driver):
 
             data = {}
             for name, value in doc.items():
-                data[name] = yield decode_field(value, schema.fields[name])
+                data[name] = decode_field(value, schema.fields[name])
 
             entry = schema(data)
             entry.meta = Meta(key, response.header.cas)

@@ -16,3 +16,4 @@ along with Uzu.  If not, see <http://www.gnu.org/licenses/>.
 """
 
 from uzu.db.field.core import *
+from uzu.db.field.relations import *
