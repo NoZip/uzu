@@ -18,6 +18,7 @@ See http://code.google.com/p/memcached/wiki/BinaryProtocolRevamped
 """
 
 import socket
+from struct import pack
 
 from tornado.iostream import IOStream, SSLIOStream
 from tornado.gen import coroutine, Task
@@ -70,10 +71,6 @@ ResponseHeader = packable_structure(
 Request = structure("Request", ("header", "extra", "key", "value"))
 Response = structure("Response", ("request", "header", "extra", "key", "value"))
 
-GetExtra = packable_structure("GetExtra", ("flags"), "!I")
-SetExtra = packable_structure("SetExtra", ("flags", "expiration"), "!II")
-TouchExtra = packable_structure("GetExtra", ("expiration"), "!I")
-
 status_reason = {
     0x0000 : "no error",
     0x0001 : "key not found",
@@ -113,8 +110,43 @@ class Memcached:
         self._stream.close()
 
     @coroutine
-    def send_package(
-        self,
+    def send_package(self, header, extra, key, value):
+        """
+        Sends a package to the Memcached server.
+        """
+
+        assert(isinstance(header, RequestHeader))
+        assert(isinstance(extra, bytes))
+        assert(isinstance(key, bytes))
+        assert(isinstance(value, bytes))
+
+        request = Request(header, extra, key, value)
+
+        yield Task(self._stream.write, header.pack() + extra + key + value)
+
+        return request
+
+    @coroutine
+    def receive_package(self, request):
+        assert(isinstance(request, Request))
+
+        read_bytes = self._stream.read_bytes
+
+        packed_header = yield Task(read_bytes, ResponseHeader._packer.size)
+        header = ResponseHeader.unpack(packed_header)
+
+        body = yield Task(read_bytes, header.body_len)
+
+        extra = body[:header.extra_len]
+        key = body[header.extra_len:header.extra_len + header.key_len]
+        value = body[header.extra_len + header.key_len:]
+
+        response = Response(request, header, extra, key, value)
+
+        return response
+
+    @coroutine
+    def query(self,
         opcode,
         extra=b"",
         key=b"",
@@ -125,20 +157,22 @@ class Memcached:
         cas=bytes(8)
     ):
         """
-        Sends a package to the Memcached server.
-
         parameters:
             opcode: the command code.
             extra: the extra data.
-            key: TODO
-            value: TODO
+            key: The key of the object to handle with the command.
+            value: The value associated with the command.
             data_type: Reserved for future use, so live it blank.
             vbucket_id: The virtual bucket for this command.
             opaque: a value that will be returned in the response.
             cas: data version check
-
-        return: The request object that have been sent.
         """
+
+        assert(isinstance(opcode, int))
+        assert(isinstance(extra, bytes))
+        assert(isinstance(key, (bytes, str)))
+        assert(isinstance(value, (bytes, str)))
+        # TODO: others parameters assertions
 
         if isinstance(key, str):
             key = key.encode()
@@ -158,35 +192,7 @@ class Memcached:
             cas = cas
         )
 
-        request = Request(header, extra, key, value)
-
-        write = self._stream.write
-
-        yield Task(write, header.pack())
-        yield Task(write, extra + key + value)
-
-        return request
-
-    @coroutine
-    def receive_package(self, request):
-        read_bytes = self._stream.read_bytes
-
-        packed_header = yield Task(read_bytes, ResponseHeader._packer.size)
-        header = ResponseHeader.unpack(packed_header)
-
-        body = yield Task(read_bytes, header.body_len)
-
-        extra = body[:header.extra_len]
-        key = body[header.extra_len:header.extra_len + header.key_len]
-        value = body[header.extra_len + header.key_len:]
-
-        response = Response(request, header, extra, key, value)
-
-        return response
-
-    @coroutine
-    def query(self, opcode, extra=b"", key=b"", value=b"", **kwargs):
-        request = yield self.send_package(opcode, extra, key, value, **kwargs)
+        request = yield self.send_package(header, extra, key, value)
         response = yield self.receive_package(request)
 
         status = response.header.status
@@ -241,8 +247,8 @@ class Memcached:
         If the key exist, it's data will be modified.
 
         parameters:
-            key: TODO
-            value: TODO
+            key: The key of the data to modify
+            value: The new value
             cas: TODO
             flags: TODO
             expiration: TODO
@@ -252,7 +258,7 @@ class Memcached:
         assert(key)
 
         opcode = 0x01 #if not quiet else 0x11
-        extra = SetExtra(flags, expiration).pack()
+        extra = pack("!II", flags, expiration)
         response = yield self.query(
             opcode,
             extra=extra,
@@ -280,8 +286,8 @@ class Memcached:
         an exception.
 
         parameters:
-            key: TODO
-            value: TODO
+            key: key of the new value to add
+            value: The value to add.
             cas: TODO
             flags: TODO
             expiration: TODO
@@ -291,7 +297,7 @@ class Memcached:
         assert(key)
 
         opcode = 0x02 #if not quiet else 0x13
-        extra = SetExtra(flags, expiration).pack()
+        extra = pack("!II", flags, expiration)
 
         response = yield self.query(
             opcode,
@@ -319,8 +325,8 @@ class Memcached:
         If the key does not exist, an exception will be raised.
 
         parameters:
-            key: TODO
-            value: TODO
+            key: the key of the value to replace
+            value: new value
             cas: TODO
             flags: TODO
             expiration: TODO
@@ -330,7 +336,7 @@ class Memcached:
         assert(key)
 
         opcode = 0x03 #if not quiet else 0x13
-        extra = SetExtra(flags, expiration).pack()
+        extra = pack("!II", flags, expiration)
         
         response = yield self.query(
             opcode,

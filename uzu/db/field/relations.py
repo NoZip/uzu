@@ -35,7 +35,7 @@ class ForeignKeyField(RelationField):
     _type = (Schema, Proxy)
 
     def __init__(self, schema, required=False, default=None):
-        assert issubclass(schema, Schema)
+        assert(issubclass(schema, Schema))
 
         super().__init__(required=required, default=default)
 
