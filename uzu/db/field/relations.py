@@ -15,6 +15,7 @@ You should have received a copy of the GNU Lesser General Public License
 along with Uzu.  If not, see <http://www.gnu.org/licenses/>.
 """
 
+from uzu.db.schema import Schema, Proxy
 from uzu.db.field.core import Field
 
 class RelationField(Field):
@@ -31,10 +32,10 @@ class ForeignKeyField(RelationField):
         schema: The schema class linked to the key.
     """
 
-    _type = (DrivedMixin, Proxy)
+    _type = (Schema, Proxy)
 
     def __init__(self, schema, required=False, default=None):
-        assert issubclass(schema, self._type)
+        assert issubclass(schema, Schema)
 
         super().__init__(required=required, default=default)
 

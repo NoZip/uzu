@@ -21,6 +21,7 @@ from types import new_class
 
 from tornado.gen import coroutine
 
+from uzu.tools.structure import structure
 from uzu.db.driver import Driver
 
 
@@ -41,7 +42,6 @@ class MetaSchema(ABCMeta):
 
         cls.fields = fields
 
-Proxy = structure("Proxy", ("key", "schema"))
 
 class Schema(MutableMapping, metaclass=MetaSchema):
     """
@@ -86,11 +86,6 @@ class Schema(MutableMapping, metaclass=MetaSchema):
 
     def __getitem__(self, name):
         if name in self._data:
-            if isinstance(self._data[name], Proxy):
-                # proxy loading
-                proxy = self._data[name]
-                self._data[name] = proxy.schema.load(proxy.key).result()
-
             return self._data[name]
         else:
             raise KeyError("No '{}' field".format(name))
@@ -117,6 +112,28 @@ class Schema(MutableMapping, metaclass=MetaSchema):
     def is_valid(self):
         return all(self.fields[name].is_valid(self[name]) for name in self)
 
+    def __repr__(self):
+        return "<{} id: {}>".format(self.__class__.__name__, self.key)
+
+
+class Proxy:
+    """
+    Proxy class for Schema instances in database.
+    """
+
+    __slots__ = ("key", "schema")
+
+    def __init__(self, key, schema):
+        self.key = key
+        self.schema = schema
+
+    def __repr__(self):
+        return "<{}Proxy id: {}>".format(self.schema.__name__, self.key)
+
+
+#
+# Schema driver #
+#
 
 class DrivedMixin:
 

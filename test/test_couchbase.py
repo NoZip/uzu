@@ -19,7 +19,8 @@ class Test(Schema):
 		return dict(
 			name = StringField(required=True),
 			age = IntegerField(min=0),
-			creation = DateTimeField(required=True, auto_now=True)
+			creation = DateTimeField(required=True, auto_now=True),
+			link = ForeignKeyField(schema=cls)
 		)
 
 # music_bucket = CouchbaseSASLBucket("localhost", "music", "nab3shin")
@@ -36,13 +37,22 @@ class CouchbaseTestCase(AsyncTestCase):
 
 	@gen_test
 	def test_client(self):
-		test = Test(name="Thomas", age=19)
-		yield test.store()
-		loaded = yield Test.load(test.key)
-		self.assertEqual(dict(test), dict(loaded))
-		test["age"] = 23
-		yield test.store()
-		yield test.remove()
+		test1 = Test(name="Thomas", age=25)
+		test2 = Test(name="Amandine", age=23)
+		yield test1.store()
+		yield test2.store()
+		loaded1 = yield Test.load(test1.key)
+		loaded2 = yield Test.load(test2.key)
+		self.assertEqual(dict(test1), dict(loaded1))
+		self.assertEqual(dict(test2), dict(loaded2))
+		test1["link"] = test2
+		test2["link"] = test1
+		yield test1.store()
+		yield test2.store()
+		loaded1 = yield Test.load(test1.key)
+		loaded2 = yield Test.load(test2.key)
+		yield test1.remove()
+		yield test2.remove()
 
 	# @gen_test
 	# def test_sasl_client(self):

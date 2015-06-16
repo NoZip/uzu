@@ -30,6 +30,7 @@ def encode_field(value, field):
         
     elif isinstance(field, ForeignKeyField):
         return value.key
+
     else:
         return value
 
@@ -41,7 +42,7 @@ def decode_field(value, field):
         return [decode_field(item, field.field) for item in value]
 
     elif isinstance(field, ForeignKeyField):
-      return Proxy(key=value, schema=field.schema)
+        return Proxy(key=value, schema=field.schema)
 
     else:
         return value
@@ -62,7 +63,7 @@ class Bucket(Driver):
         self._cache = {}
 
     @coroutine
-    def load(self, key, schema, refresh_cache=False):
+    def load(self, key, schema, refresh_cache=True):
         if key not in self._cache:
             response = yield self._memcached_client.get(key)
             doc = json.loads(response.value.decode())
@@ -84,12 +85,12 @@ class Bucket(Driver):
     @coroutine
     def reload(self, entry):
         response = yield self._memcached_client.get(entry.key)
+        doc = json.loads(response.value.decode())
 
         data = {}
-        for name, value in entry.items():
-            data[name] = yield decode_field(value, entry.fields[name])
+        for name, value in doc.items():
+            data[name] = decode_field(value, entry.fields[name])
 
-        entry.clear()
         entry.update(data)
         entry.meta.cas = response.header.cas
 
