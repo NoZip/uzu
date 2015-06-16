@@ -39,18 +39,28 @@ class CouchbaseTestCase(AsyncTestCase):
 	def test_client(self):
 		test1 = Test(name="Thomas", age=25)
 		test2 = Test(name="Amandine", age=23)
+
 		yield test1.store()
 		yield test2.store()
+
 		loaded1 = yield Test.load(test1.key)
 		loaded2 = yield Test.load(test2.key)
-		self.assertEqual(dict(test1), dict(loaded1))
-		self.assertEqual(dict(test2), dict(loaded2))
+
+		self.assertEqual(test1, loaded1)
+		self.assertEqual(test2, loaded2)
+
 		test1["link"] = test2
 		test2["link"] = test1
+
 		yield test1.store()
 		yield test2.store()
+
 		loaded1 = yield Test.load(test1.key)
 		loaded2 = yield Test.load(test2.key)
+
+		self.assertEqual(loaded1["link"], test2)
+		self.assertEqual(loaded2["link"], test1)
+		
 		yield test1.remove()
 		yield test2.remove()
 

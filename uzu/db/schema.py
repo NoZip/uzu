@@ -112,6 +112,17 @@ class Schema(MutableMapping, metaclass=MetaSchema):
     def is_valid(self):
         return all(self.fields[name].is_valid(self[name]) for name in self)
 
+    def __eq__(self, other):
+        """
+        Equality operator overload.
+        """
+        if isinstance(other, self.__class__):
+            return other.key == self.key and other._data == self._data
+        elif isinstance(other, Proxy):
+            return other.scheme == self.__class__ and other.key == self.key
+        else:
+            return False
+
     def __repr__(self):
         return "<{} id: {}>".format(self.__class__.__name__, self.key)
 
@@ -126,6 +137,17 @@ class Proxy:
     def __init__(self, key, schema):
         self.key = key
         self.schema = schema
+
+    def __eq__(self, other):
+        """
+        Equality operator overload.
+        """
+        if isinstance(other, self.schema):
+            return other.key == self.key
+        elif isinstance(other, Proxy):
+            return other.schema == self.schema and proxy.key == self.key
+        else:
+            return False
 
     def __repr__(self):
         return "<{}Proxy id: {}>".format(self.schema.__name__, self.key)
